@@ -1,0 +1,38 @@
+# 忽略 Python 編譯後產生的暫存檔案
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 忽略 pip 環境的虛擬環境資料夾（常見名稱）
+env/
+venv/
+ENV/
+
+# 忽略 VS Code 的設定資料夾
+.vscode/
+
+# 忽略 Jupyter Notebook 的快取檔案
+.ipynb_checkpoints/
+
+# 忽略系統自動產生的隱藏檔
+.DS_Store     # macOS
+Thumbs.db     # Windows
+
+# 忽略日誌檔、暫存檔
+*.log
+*.tmp
+
+# 忽略機密設定檔（如包含 API 金鑰的環境變數）
+.env
+
+# 如果有資料輸出資料夾（自行視情況加入）
+BTC_1d_model_TEST_BEST_BALANCE _19萬
+BTC_1d_model_TEST_BEST_BALANCE
+BTC_1d_model_TEST_BEST_REWARD
+BTC_1d_model_TEST
+BTC_1d_model_TEST_BEST_STEP
+BTC_1d_model_TEST_target
+training_plots
+a.py
+linebot_test.py
+test.py

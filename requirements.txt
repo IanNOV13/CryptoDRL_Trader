@@ -1,0 +1,34 @@
+# Python 基本套件
+numpy
+pandas
+
+# 技術分析工具
+pandas-ta  # 用於技術指標計算
+
+# 深度學習框架
+tensorflow>=2.0.0  # TensorFlow 2.x
+
+# 機器學習工具
+scikit-learn  # 提供 StandardScaler、RobustScaler 等
+
+# 繪圖工具
+matplotlib
+
+# 環境模擬（強化學習用）
+gymnasium  # 新版 Gym，如果用舊版也可用 gym
+# gym  # ← 如果你用的是舊版 Gym 可取消這行註解並註解 gymnasium
+
+# 環境變數管理
+python-dotenv
+
+# 網路請求（例如傳送 Discord webhook）
+requests
+
+# 模型或標準化器保存與讀取
+joblib
+
+# 可選：使用 LINE Bot API
+line-bot-sdk>=3.0.0  # 如果要用 LINE Bot，可保留
+
+# 可選：鍵盤事件監聽（需注意系統權限）
+keyboard  # 注意某些系統上可能需以管理員執行
