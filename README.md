@@ -54,7 +54,7 @@ pip install -r requirements.txt
 ├── technical/               # 存放計算了技術指標的數據文件
 ├── full_csv/                # 存放原始的市場數據 CSV 文件
 ├── BTC_1d_model_TEST/       # 模型保存目錄 (根據 setting.json 中的 MODEL_PATH)
-│   ├── scaler.joblib        # 保存的 Scaler 對象
+│   └── scaler.joblib        # 保存的 Scaler 對象
 ├── BEST_BALANCE/            # 最佳餘額模型
 ├── BEST_REWARD/             # 最佳獎勵模型
 ├── BEST_STEP/               # 最佳步數模型
