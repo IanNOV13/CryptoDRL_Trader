@@ -51,6 +51,8 @@ class CryptoTradingEnv(gym.Env):
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_data_features + 4,), dtype=np.float32)
         self.action_space = spaces.Discrete(len(self.action_map))
 
+        self.data_split = data_split
+
         # --- 狀態變數初始化 ---
         self._reset_state() # 將初始化邏輯放入一個輔助方法
 
@@ -184,6 +186,8 @@ class CryptoTradingEnv(gym.Env):
         self.hight_sell_timer = 0
         self.low_sell_timer = 0
         self.balance_history = [self.initial_balance] # 初始化資產歷史
+        self.buy_positions = []
+        self.sell_positions = []
         self.max_drawdown = 0.0
         self.peak_balance = self.initial_balance # 初始化峰值
         self.cumulative_trade_reward = 0.0 #交易分數
@@ -212,8 +216,7 @@ class CryptoTradingEnv(gym.Env):
         price = (current_data[1] + current_data[3]) / 2 # 使用 high 和 close 計算價格
         self.no_action_timer += 1
         trade_ratio = self.action_map[action]
-        reward = 0.0 # 初始化為浮點數
-        invalid_trade_penalty = 0.0 # 新增局部變量
+        reward = 0.0
 
         # --- 交易邏輯 ---
         trade_executed = False # 標記是否執行了交易
@@ -235,6 +238,7 @@ class CryptoTradingEnv(gym.Env):
                 self.balance -= buy_amount
                 if self.balance < 1e-6: self.balance = 0
                 self.no_action_timer = 0
+                self.buy_positions.append((self.action_map[action],self.current_step))
                 trade_executed = True
             else:
                 trade_ratio = 0 # 買入金額太小，視為無效
@@ -270,6 +274,7 @@ class CryptoTradingEnv(gym.Env):
                 self.position -= sell_units
                 if self.position < 1e-6: self.position = 0
                 self.no_action_timer = 0
+                self.sell_positions.append((self.action_map[action],self.current_step))
                 trade_executed = True
             else:
                 trade_ratio = 0 # 賣出單位太小，視為無效

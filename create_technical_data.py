@@ -2,8 +2,8 @@ import os
 import pandas as pd
 import pandas_ta as ta
 
-def creat_technical_data(symbol="BTCUSDT", interval="1d"):
-    df = pd.read_csv(f"./full_csv/{symbol}_{interval}_full.csv")
+def creat_technical_data(df_raw):
+    df = pd.read_csv(df_raw)
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df.set_index("timestamp", inplace=True)
     df[["open", "high", "low", "close", "volume"]] = df[["open", "high", "low", "close", "volume"]].astype(float)
@@ -40,11 +40,7 @@ def creat_technical_data(symbol="BTCUSDT", interval="1d"):
 
     df.dropna(inplace=True)
 
-    output_dir = "./technical"
-    os.makedirs(output_dir, exist_ok=True)
-    output_filepath = f"{output_dir}/{symbol}_{interval}_technical.csv"
-    df.to_csv(output_filepath)
-    print(f"✅ 技術指標計算完成 (使用 pandas-ta)，已存成 {output_filepath}！")
+    return df
 
 
 if __name__ == "__main__":

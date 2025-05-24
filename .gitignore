@@ -7,6 +7,7 @@ __pycache__/
 env/
 venv/
 ENV/
+gitignore/
 
 # 忽略 VS Code 的設定資料夾
 .vscode/
@@ -27,12 +28,17 @@ Thumbs.db     # Windows
 
 # 如果有資料輸出資料夾（自行視情況加入）
 BTC_1d_model_TEST_BEST_BALANCE _19萬
+BTC_1d_model_TEST_BEST_BALANCE _20萬
 BTC_1d_model_TEST_BEST_BALANCE
 BTC_1d_model_TEST_BEST_REWARD
 BTC_1d_model_TEST
 BTC_1d_model_TEST_BEST_STEP
 BTC_1d_model_TEST_target
+BTC_1d_model
+BTC_1d_model_BEST_BALANCE
+BTC_1d_model_BEST_REWARD
+BTC_1d_model_target
+BTC_1d_model_BEST_BALANCE_target
+BTC_1d_model_BEST_REWARD_target
+
 training_plots
-a.py
-linebot_test.py
-test.py
