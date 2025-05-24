@@ -159,7 +159,7 @@ def main():
         
         if new_balance or new_reward or (episode+1)%25 == 0 or save_on_exit_tag:
             plot_segment(episode, train_env)
-            evaluate_model(agent, test_env, model_input_shape[0], model_input_shape[1])
+            evaluate_model(agent, test_env, model_input_shape[0], episode)
             ConfigLoader("setting.json").save_progress(
                 episode = episode +1,
                 best_reward = best_reward,

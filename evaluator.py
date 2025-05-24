@@ -3,9 +3,9 @@ from collections import deque
 import numpy as np
 from plotter import plot_segment
 
-def evaluate_model(agent, eval_env, sequence_length, num_features, eval_episodes=1):
+def evaluate_model(agent, eval_env, sequence_length, episode, eval_episodes=1):
     """在測試環境上評估訓練好的模型"""
-    print(f"\n--- 開始對測試集進行評估 ({eval_episodes} episodes)) ---")
+    print(f"\n--- 開始使用{episode}的模型對測試集進行評估 ({eval_episodes} episodes)) ---")
     total_rewards = []
     final_balances = []
     max_drawdowns = []
@@ -37,7 +37,7 @@ def evaluate_model(agent, eval_env, sequence_length, num_features, eval_episodes
             eval_total_reward += eval_reward
             eval_state_sequence = eval_next_state_sequence
 
-        plot_segment(i, eval_env)
+        plot_segment(episode, eval_env)
 
         # 記錄評估結果
         total_rewards.append(eval_total_reward)
