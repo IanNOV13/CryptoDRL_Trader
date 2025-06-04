@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import pandas_ta as ta
 
-def creat_technical_data(df_raw):
+def creat_technical_data(df_raw, save_cvs=False):
     df = pd.read_csv(df_raw)
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df.set_index("timestamp", inplace=True)
@@ -40,14 +40,18 @@ def creat_technical_data(df_raw):
 
     df.dropna(inplace=True)
 
+    if save_cvs:
+        path = df_raw.replace("full_csv", "technical").replace("full.csv", "technical.csv")
+        df.to_csv(path, index=True)
+
     return df
 
 
 if __name__ == "__main__":
-    coin = "DOGEUSDT"
+    coin = "BTCUSDT"
 
     # 存成 CSV 檔案
-    creat_technical_data(coin, '1d')
-    creat_technical_data(coin, '1h')
+    creat_technical_data(f'./full_csv/{coin}_1d_full.csv', save_cvs=True)
+    creat_technical_data(f'./full_csv/{coin}_1h_full.csv', save_cvs=True)
 
     print("✅ 已成功存成 CSV！")

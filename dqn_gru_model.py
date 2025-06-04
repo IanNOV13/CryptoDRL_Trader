@@ -82,7 +82,7 @@ def build_inception_gru_dqn_model(input_shape, action_size):
     dqn_head = LeakyReLU(alpha=0.1, name="dqn_relu_1")(dqn_head)
 
     # 最終輸出 Q 值
-    output_layer = Dense(action_size, activation='linear', name="q_values")(dqn_head)
+    output_layer = Dense(action_size, dtype='float32', activation='linear', name="q_values")(dqn_head)
 
     # === 構建和編譯模型 ===
     model = Model(inputs=input_layer, outputs=output_layer)
@@ -90,16 +90,6 @@ def build_inception_gru_dqn_model(input_shape, action_size):
     model.compile(loss='mse', optimizer=tf.keras.optimizers.Adam(learning_rate=0.0005, epsilon=1e-7))
 
     return model
-
-def cosine_decay_schedule(epoch, lr):
-    initial_lr = 1e-3
-    drop_rate = 0.25
-    epochs_drop = 20.0
-    alpha = 0.0
-    cosine_decay = 0.5 * (1 + np.cos(np.pi * (epoch % epochs_drop) / epochs_drop))
-    decayed = (1 - drop_rate) * cosine_decay + drop_rate
-    new_lr = initial_lr * decayed
-    return max(new_lr, alpha)
 
 if __name__ == "__main__":
     model = build_inception_gru_dqn_model(input_shape=(24, 11), action_size=3)

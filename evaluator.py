@@ -2,6 +2,7 @@ import tensorflow as tf
 from collections import deque
 import numpy as np
 from plotter import plot_segment
+from utils import notify_discord_webhook
 
 def evaluate_model(agent, eval_env, sequence_length, episode, eval_episodes=1):
     """在測試環境上評估訓練好的模型"""
@@ -9,6 +10,8 @@ def evaluate_model(agent, eval_env, sequence_length, episode, eval_episodes=1):
     total_rewards = []
     final_balances = []
     max_drawdowns = []
+    sharpe_ratio = []
+    calmar_ratio = []
     peak_balances = []
     all_hight_sells = []
     all_low_sells = []
@@ -42,22 +45,32 @@ def evaluate_model(agent, eval_env, sequence_length, episode, eval_episodes=1):
         # 記錄評估結果
         total_rewards.append(eval_total_reward)
         final_balances.append(eval_env.total_balance)
-        max_drawdowns.append(eval_env.max_drawdown) # 環境在 done 時計算
+        max_drawdowns.append(eval_env.max_drawdown)
+        sharpe_ratio.append(eval_env.sharpe_ratio)
+        calmar_ratio.append(eval_env.calmar_ratio)
         peak_balances.append(np.max(eval_env.balance_history)) # 從歷史記錄計算峰值
         all_hight_sells.append(eval_env.hight_sell_timer)
         all_low_sells.append(eval_env.low_sell_timer)
         all_steps.append(eval_t)
-        print(f"Eval Ep {i+1}: Steps={eval_t}, Reward={eval_total_reward:.2f}, Balance={eval_env.total_balance:.2f}, MaxDrawdown={eval_env.max_drawdown*100:.2f}%, Peak={np.max(eval_env.balance_history):.2f}")
+        print(f"Eval Ep {i+1}: Steps={eval_t}, Reward={eval_total_reward:.2f}, Balance={eval_env.total_balance:.2f}, Peak={np.max(eval_env.balance_history):.2f}")
+        print(f"Sharpe={eval_env.sharpe_ratio:.2f}, Calmar={eval_env.calmar_ratio:.2f}, MaxDrawdown={eval_env.max_drawdown*100:.2f}%")
         
     # 計算平均結果
     avg_reward = np.mean(total_rewards)
     avg_balance = np.mean(final_balances)
     avg_max_drawdown = np.mean(max_drawdowns)
+    avg_sharpe_ratio = np.mean(sharpe_ratio)
+    avg_calmar_ratio = np.mean(calmar_ratio)
     avg_peak = np.mean(peak_balances)
-    print(f"--- Evaluation Summary (Avg over {eval_episodes} episodes) ---")
-    print(f"Avg Reward: {avg_reward:.2f}")
-    print(f"Avg Final Balance: {avg_balance:.2f}")
-    print(f"Avg Max Drawdown: {avg_max_drawdown*100:.2f}%")
-    print(f"Avg Peak Balance: {avg_peak:.2f}")
-    print(f"----------------------------------------------------")
-    return {"avg_reward": avg_reward, "avg_balance": avg_balance, "avg_max_drawdown": avg_max_drawdown}
+    
+    report = f"--- Evaluation Summary (Avg over {eval_episodes} episodes) ---\n"
+    report +=f"Avg Reward: {avg_reward:.2f}\n"
+    report +=f"Avg Final Balance: {avg_balance:.2f}\n"
+    report +=f"Avg Sharpe Ratio: {avg_sharpe_ratio:.2f}\n"
+    report += f"Avg Calmar Ratio: {avg_calmar_ratio:.2f}\n"
+    report += f"Avg Max Drawdown: {avg_max_drawdown*100:.2f}%\n"
+    report +=f"Avg Peak Balance: {avg_peak:.2f}\n"
+    report +=f"----------------------------------------------------\n"
+    
+    print(report)
+    notify_discord_webhook(report)

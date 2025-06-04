@@ -5,7 +5,7 @@ from gym import spaces
 from sklearn.preprocessing import StandardScaler # 用於歸一化
 
 class CryptoTradingEnv(gym.Env):
-    def __init__(self, data_file, data_split='train', train_ratio=0.8, initial_balance=500):
+    def __init__(self, data_file, data_split='train', train_ratio=0.8, initial_balance=500, risk_free_rate=0.0, days_in_year=365):
         super(CryptoTradingEnv, self).__init__()
 
         # --- 數據加載與劃分 (修正測試集邏輯) ---
@@ -54,6 +54,8 @@ class CryptoTradingEnv(gym.Env):
         self.data_split = data_split
 
         # --- 狀態變數初始化 ---
+        self.risk_free_rate = risk_free_rate
+        self.days_in_year = days_in_year
         self._reset_state() # 將初始化邏輯放入一個輔助方法
 
     def get_current_unscaled_state_vector(self):
@@ -195,6 +197,9 @@ class CryptoTradingEnv(gym.Env):
         self.cumulative_hold_penalty = 0.0 #持有與不動作分數
         self.cumulative_drawdown_penalty = 0.0 #回徹逞罰分數
         self.cumulative_invalid_trade_penalty = 0.0 # 無效交易懲罰
+        self.daily_returns = [] # 新增：用於記錄每日回報率
+        self.sharpe_ratio = 0.0 # 新增：回合夏普比率
+        self.calmar_ratio = 0.0 # 新增：回合卡爾馬比率
 
     def reset(self):
         self._reset_state()
@@ -257,15 +262,15 @@ class CryptoTradingEnv(gym.Env):
                     if profit_ratio > 0:
                         log_return = np.log(profit_ratio)
                         if self.no_action_timer < 15:
-                            LOG_TRADE_REWARD_SCALE = min(125,self.no_action_timer * 8) # <<<=== **可調參數 1**
+                            LOG_TRADE_REWARD_SCALE = min(600,self.no_action_timer * 40) # <<<=== **可調參數 1**
                         else:
-                            LOG_TRADE_REWARD_SCALE = 125
+                            LOG_TRADE_REWARD_SCALE = 600
                         LOSS_PENALTY_MULTIPLIER = 1.1 # <<<=== **可調參數 2**
                         if log_return > 0:
-                            trade_reward = log_return * LOG_TRADE_REWARD_SCALE
+                            trade_reward = log_return * profit_ratio * LOG_TRADE_REWARD_SCALE
                             self.hight_sell_timer += 1
                         else:
-                            trade_reward = log_return * LOG_TRADE_REWARD_SCALE * LOSS_PENALTY_MULTIPLIER # log_return 是負數，乘以正數仍是負獎勵
+                            trade_reward = log_return * profit_ratio * LOG_TRADE_REWARD_SCALE * LOSS_PENALTY_MULTIPLIER # log_return 是負數，乘以正數仍是負獎勵
                             self.low_sell_timer += 1
                     else: # 價格或買點異常
                         trade_reward = -0.1 # 給一個小的固定懲罰
@@ -290,7 +295,7 @@ class CryptoTradingEnv(gym.Env):
 
         # 2. 持有/活躍相關 (保持較低影響)
         HOLD_PENALTY_FACTOR = 0.1 # <<<=== **可調參數 3**
-        HOLD_REWARD = 1      # <<<=== **可調參數 4** 取消
+        #HOLD_REWARD = 1      # <<<=== **可調參數 4** 取消
         if trade_ratio == 0 and self.no_action_timer > 15:
             hold_penalty = np.sqrt(self.no_action_timer - 15) * HOLD_PENALTY_FACTOR
             reward -= hold_penalty
@@ -322,6 +327,12 @@ class CryptoTradingEnv(gym.Env):
             reward -= penalty
             self.cumulative_drawdown_penalty -= penalty
             
+        # --- 記錄當前回報率 ---
+        if previous_total_balance > 1e-9: # 避免在初始步驟或異常情況下除以零
+            step_return = (self.total_balance - previous_total_balance) / previous_total_balance
+            self.daily_returns.append(step_return)
+        else:
+            self.daily_returns.append(0.0)
 
         # --- 檢查結束條件 ---
         self.current_step += 1
@@ -334,8 +345,10 @@ class CryptoTradingEnv(gym.Env):
 
         # --- 最終獎勵調整 (可選) ---
         if done:
-            # 計算最終的最大回撤
-            self.max_drawdown = self.get_max_drawdown()
+            # 計算最大回撤、夏普比率、卡爾馬比率
+            self.max_drawdown = self._get_max_drawdown()
+            self.sharpe_ratio = self._calculate_sharpe_ratio()
+            self.calmar_ratio = self._calculate_calmar_ratio()
             # 可以在結束時給予基於最終資產的額外獎勵/懲罰
             FINAL_PNL_REWARD_SCALE = 100 # <<<=== **可調參數 8**
             final_pnl_reward = (self.total_balance - self.initial_balance) / self.initial_balance * FINAL_PNL_REWARD_SCALE
@@ -346,7 +359,7 @@ class CryptoTradingEnv(gym.Env):
 
         return next_normalized_state, reward, done, trade_executed # 返回歸一化狀態
 
-    def get_max_drawdown(self):
+    def _get_max_drawdown(self):
         # ... (實現不變) ...
         if len(self.balance_history) < 2: return 0.0
         balance_array = np.array(self.balance_history)
@@ -358,6 +371,55 @@ class CryptoTradingEnv(gym.Env):
         drawdowns = np.nan_to_num(drawdowns, nan=0.0, posinf=0.0, neginf=0.0)
         max_drawdown = np.max(drawdowns) if len(drawdowns) > 0 else 0.0
         return max_drawdown
+    
+    def _calculate_sharpe_ratio(self):
+            """計算回合的年化夏普比率"""
+            if len(self.daily_returns) < 2: # 需要至少兩個回報率才能計算標準差
+                return 0.0
+
+            returns_arr = np.array(self.daily_returns)
+            # 計算超額回報率 (相對於每個時間步的無風險利率)
+            # 假設 self.risk_free_rate 是年化的，需要轉換為每個時間步的利率
+            step_risk_free_rate = self.risk_free_rate / self.days_in_year
+            excess_returns = returns_arr - step_risk_free_rate
+
+            # 計算平均超額回報率和標準差
+            mean_excess_return = np.mean(excess_returns)
+            std_dev_excess_return = np.std(excess_returns)
+
+            if std_dev_excess_return < 1e-9: # 避免除以零 (如果回報完全沒有波動)
+                return 0.0
+
+            # 計算夏普比率並年化
+            sharpe_ratio = mean_excess_return / std_dev_excess_return
+            annualized_sharpe_ratio = sharpe_ratio * np.sqrt(self.days_in_year)
+            return annualized_sharpe_ratio
+    
+    def _calculate_calmar_ratio(self):
+        """計算回合的年化卡爾馬比率"""
+        if len(self.balance_history) < 2 or self.initial_balance < 1e-9:
+            return 0.0
+
+        # 計算總回報率
+        total_return = (self.total_balance - self.initial_balance) / self.initial_balance
+
+        # 計算年化回報率
+        # 假設 self.current_step 是總步數
+        num_steps = self.current_step
+        if num_steps == 0: return 0.0
+        # 年化回報 = (1 + 總回報)^(年化因子 / 總期數) - 1
+        annualized_return = (1 + total_return)**(self.days_in_year / num_steps) - 1 if total_return > -1 else -1.0
+
+
+        # 獲取最大回撤 (假設 self.max_drawdown 已在 done 時被 _calculate_max_drawdown 更新)
+        max_dd = self.max_drawdown
+        if max_dd < 1e-9: # 避免除以零 (如果沒有回撤)
+             # 如果沒有回撤且有正收益，可以返回一個很大的正數，或者根據情況處理
+            return annualized_return / 1e-9 if annualized_return > 0 else 0.0
+
+
+        calmar_ratio = annualized_return / max_dd
+        return calmar_ratio
     
 if __name__=="__main__":
     # 創建環境

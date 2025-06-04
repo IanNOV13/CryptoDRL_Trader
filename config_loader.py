@@ -61,6 +61,7 @@ class ConfigLoader:
             "BEST_STEPS": 0,
             "BEST_REWARD": None, # 將在 _process_special_values 中處理
             "BEST_BALANCE": None, # 將在 _process_special_values 中處理
+            "BEST_CALMAR_RATIO": None,
             "SEQUENCE_LENGTH": 30,
             "MEMORY_LIMIT_GB": 12.0,
             "USE_LINE_BOT": False,
@@ -77,6 +78,8 @@ class ConfigLoader:
             self.settings["BEST_REWARD"] = -np.inf
         if self.settings.get("BEST_BALANCE") is None:
             self.settings["BEST_BALANCE"] = -np.inf
+        if self.settings.get("BEST_CALMAR_RATIO") is None:
+            self.settings["BEST_CALMAR_RATIO"] = -np.inf
 
         # 確保 SCALER_PATH 是基於 MODEL_PATH 生成的
         model_path = self.get("MODEL_PATH", "default_model_path") # 使用 get 避免 MODEL_PATH 也不存在
@@ -102,7 +105,7 @@ class ConfigLoader:
         """
         return self.settings
 
-    def save_progress(self, episode, best_reward, best_balance, current_epsilon, current_lr, global_step_count):
+    def save_progress(self,**kwargs):
         """
         保存訓練進度到 setting.json 文件。
         會先讀取現有設置，然後更新進度相關的鍵，再寫回。
@@ -111,17 +114,19 @@ class ConfigLoader:
             episode (int): 當前完成的回合數。
             best_reward (float): 當前的最佳獎勵。
             best_balance (float): 當前的最佳餘額。
+            best_calmar_ratio (float): 當前的最佳卡爾馬比率。
             current_epsilon (float): 當前的 Epsilon 值。
             current_lr (float): 當前的學習率。
             global_step_count (int): 當前的全局步數。
         """
         progress_to_save = {
-            "START_EPISODE": episode + 1, # 下次從下一個回合開始
-            "BEST_REWARD": float(best_reward) if best_reward != -np.inf else None, # 存儲 None 而不是 -inf
-            "BEST_BALANCE": float(best_balance) if best_balance != -np.inf else None, # 存儲 None 而不是 -inf
-            "INITIAL_EPSILON": float(current_epsilon), # 下次啟動時的初始 Epsilon
-            "INITIAL_LR": float(current_lr),           # 下次啟動時的初始學習率 (如果 LR 調度是基於此)
-            "global_step_count": int(global_step_count) # 保存全局步數
+            "START_EPISODE": kwargs['episode'] + 1, # 下次從下一個回合開始
+            "BEST_REWARD": float(kwargs['best_reward']) if kwargs['best_reward'] != -np.inf else None, # 存儲 None 而不是 -inf
+            "BEST_BALANCE": float(kwargs['best_balance']) if kwargs['best_balance'] != -np.inf else None, # 存儲 None 而不是 -inf
+            "BEST_CALMAR_RATIO": float(kwargs['best_calmar_ratio'])if kwargs['best_calmar_ratio'] != -np.inf else None,
+            "EPSILON": float(kwargs['current_epsilon']), # 下次啟動時的初始 Epsilon
+            "current_lr": float(kwargs['current_lr']),           # 下次啟動時的初始學習率 (如果 LR 調度是基於此)
+            "global_step_count": int(kwargs['global_step_count']) # 保存全局步數
             # 可以根據需要添加更多需要保存的進度信息
         }
 

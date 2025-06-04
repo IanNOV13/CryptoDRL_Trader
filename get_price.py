@@ -39,6 +39,7 @@ def get_all_binance_klines(symbol="BTCUSDT", interval="1d", end_time=None):
     
     # 轉換時間格式
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+    df.sort_values(by="timestamp", ascending=True, inplace=True)
 
     # 選擇需要的欄位
     df = df[["timestamp", "open", "high", "low", "close", "volume"]]
@@ -46,7 +47,7 @@ def get_all_binance_klines(symbol="BTCUSDT", interval="1d", end_time=None):
     return df
 
 if __name__ == "__main__":
-    coin = "DOGEUSDT"
+    coin = "BTCUSDT"
     # 取得 BTC/USDT 的完整歷史 K 線數據
     df_daily = get_all_binance_klines(symbol=coin, interval="1d")
     df_hourly = get_all_binance_klines(symbol=coin, interval="1h")

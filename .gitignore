@@ -27,8 +27,8 @@ Thumbs.db     # Windows
 .env
 
 # 如果有資料輸出資料夾（自行視情況加入）
-BTC_1d_model_TEST_BEST_BALANCE _19萬
-BTC_1d_model_TEST_BEST_BALANCE _20萬
+BTC_1d_model_BEST_CALMAR_RATIO
+BTC_1d_model_BEST_CALMAR_RATIO_target
 BTC_1d_model_TEST_BEST_BALANCE
 BTC_1d_model_TEST_BEST_REWARD
 BTC_1d_model_TEST

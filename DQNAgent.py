@@ -1,6 +1,8 @@
 import numpy as np
 import random
 import tensorflow as tf
+import joblib
+import os
 from collections import deque
 
 # 假設你的模型構建函數在 model_builder.py (或 dqn_gru_model.py)
@@ -198,8 +200,9 @@ class DQNAgent:
                 action_max_online = np.argmax(q_values_next_online[i])
                 targets[i, actions_batch[i]] = rewards_batch[i] + self.gamma * q_values_next_target[i, action_max_online]
 
-        self.model.fit(state_sequences_batch, targets, epochs=1, verbose=0, batch_size=actual_batch_size, shuffle=False) # shuffle=False 因為已手動打亂
-        return True # 指示訓練已執行
+        history = self.model.fit(state_sequences_batch, targets, epochs=1, verbose=0, batch_size=actual_batch_size, shuffle=False) # shuffle=False 因為已手動打亂
+        current_batch_loss = history.history['loss'][0]
+        return current_batch_loss
 
     def get_current_epsilon(self, episode_num):
         """計算當前回合的 Epsilon (週期性餘弦退火)"""
@@ -226,6 +229,25 @@ class DQNAgent:
         self.model.save(path_prefix, save_format='tf')
         self.target_model.save(path_prefix + "_target", save_format='tf')
         print(f"模型已保存到: {path_prefix} (和 _target)")
+        # --- 保存經驗池 ---
+        try:
+            # 為每個經驗池創建單獨的文件名
+            main_memory_path = os.path.join(path_prefix, "main_memory.joblib")
+            best_balance_memory_path = os.path.join(path_prefix, "best_balance_memory.joblib")
+            best_reward_memory_path = os.path.join(path_prefix, "best_reward_memory.joblib")
+
+            joblib.dump(self.memory, main_memory_path)
+            print(f"主經驗池已保存到: {main_memory_path}")
+
+            joblib.dump(self.best_balance_memory, best_balance_memory_path)
+            print(f"最佳餘額經驗池已保存到: {best_balance_memory_path}")
+
+            joblib.dump(self.best_reward_memory, best_reward_memory_path)
+            print(f"最佳獎勵經驗池已保存到: {best_reward_memory_path}")
+
+        except Exception as e:
+            print(f"[錯誤] 保存經驗池失敗: {e}")
+
 
     def load_model(self, path_prefix):
         """加載主模型和目標模型"""
@@ -234,14 +256,14 @@ class DQNAgent:
         try:
             self.model = tf.keras.models.load_model(path_prefix, compile=False)
             main_model_loaded = True
-            #print(f"主模型已從 {path_prefix} 加載。")
+            print(f"主模型已從 {path_prefix} 加載。")
             try:
                 self.target_model = tf.keras.models.load_model(path_prefix + "_target", compile=False)
                 target_model_loaded = True
-                #print(f"目標模型已從 {path_prefix}_target 加載。")
+                print(f"目標模型已從 {path_prefix}_target 加載。")
             except Exception as e_target: # 捕獲目標模型加載失敗
                 #print(f"加載目標模型失敗 ({path_prefix}_target): {e_target}")
-                #print("將從主網絡複製權重到目標網絡。")
+                print("將從主網絡複製權重到目標網絡。")
                 # 如果主模型已加載，目標模型可以從主模型複製
                 if main_model_loaded:
                     # self.target_model = self._build_model() # 不需要重新 build，直接複製結構
@@ -263,5 +285,32 @@ class DQNAgent:
             optimizer = tf.keras.optimizers.Adam(learning_rate=self.current_lr)
             self.model.compile(optimizer=optimizer, loss='mse')
             self._compile_predict_functions()
+
+        # --- 加載經驗池 ---
+            try:
+                main_memory_path = os.path.join(path_prefix, "main_memory.joblib")
+                best_balance_memory_path = os.path.join(path_prefix, "best_balance_memory.joblib")
+                best_reward_memory_path = os.path.join(path_prefix, "best_reward_memory.joblib")
+
+                if os.path.exists(main_memory_path):
+                    self.memory = joblib.load(main_memory_path)
+                    print(f"主經驗池已從 {main_memory_path} 加載。")
+                else:
+                    print(f"主經驗池文件未找到: {main_memory_path}")
+
+                if os.path.exists(best_balance_memory_path):
+                    self.best_balance_memory = joblib.load(best_balance_memory_path)
+                    print(f"最佳餘額經驗池已從 {best_balance_memory_path} 加載。")
+                else:
+                    print(f"最佳餘額經驗池文件未找到: {best_balance_memory_path}")
+
+                if os.path.exists(best_reward_memory_path):
+                    self.best_reward_memory = joblib.load(best_reward_memory_path)
+                    print(f"最佳獎勵經驗池已從 {best_reward_memory_path} 加載。")
+                else:
+                    print(f"最佳獎勵經驗池文件未找到: {best_reward_memory_path}")
+
+            except Exception as e_memory:
+                print(f"[錯誤] 加載經驗池失敗: {e_memory}")
 
         return main_model_loaded, target_model_loaded
