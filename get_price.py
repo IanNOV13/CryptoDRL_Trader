@@ -46,6 +46,41 @@ def get_all_binance_klines(symbol="BTCUSDT", interval="1d", end_time=None):
 
     return df
 
+def get_binance_klines(symbol="BTCUSDT", interval="1d"):
+    """ 取得幣安歷史 K 線數據 """
+    url = "https://api.binance.com/api/v3/klines"
+    limit = 1000  # 幣安 API 每次最多回傳 1000 筆
+    try:
+        params = {
+            "symbol": symbol,
+            "interval": interval,
+            "limit": limit
+        }
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        print(f"📊 已獲取 {len(data)} 筆 {symbol} {interval} K 線數據...")
+
+        time.sleep(0.5)  # 避免 API 請求過快被限制
+    except:
+        pass
+        
+    # 轉換為 DataFrame
+    df = pd.DataFrame(data, columns=[
+        "timestamp", "open", "high", "low", "close", "volume",
+        "close_time", "quote_asset_volume", "trades",
+        "taker_buy_base", "taker_buy_quote", "ignore"
+    ])
+    
+    # 轉換時間格式
+    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+    df.sort_values(by="timestamp", ascending=True, inplace=True)
+
+    # 選擇需要的欄位
+    df = df[["timestamp", "open", "high", "low", "close", "volume"]]
+
+    return df
+
 if __name__ == "__main__":
     coin = "BTCUSDT"
     # 取得 BTC/USDT 的完整歷史 K 線數據

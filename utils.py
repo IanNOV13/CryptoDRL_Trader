@@ -17,7 +17,7 @@ def notify_discord_webhook(message_or_filepath, send_type="text", webhook_url=No
     try:
         if send_type == "text":
             headers = {"Content-Type": "application/json"}
-            data = {"content": message_or_filepath, "username": "訓練回報"}
+            data = {"content": message_or_filepath, "username": "交易機器人"}
             res = requests.post(webhook_url, headers=headers, json=data)
             # res.raise_for_status() # 如果需要對非2xx狀態碼拋出異常
         elif send_type == "image":

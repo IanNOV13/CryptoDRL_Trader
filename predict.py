@@ -12,9 +12,9 @@ from dotenv import load_dotenv
 # 確保這些模塊的路徑在 PYTHONPATH 中，或者與 predict.py 在同一目錄
 from config_loader import ConfigLoader
 from create_technical_data import creat_technical_data # 假設此函數能接收 DataFrame
-from dqn_lstm_model import build_inception_lstm_dqn_model # 使用你最終的模型構建函數
 from utils import notify_discord_webhook, setup_gpu
-from get_price import get_all_binance_klines
+from get_price import get_binance_klines
+from binance_api import get_account_summary
 
 # --- 全局配置 ---
 SYMBOL = "BTCUSDT"
@@ -46,20 +46,26 @@ def get_current_account_state(config, df_latest_day):
     從用戶輸入獲取當前的賬戶狀態。
     在實際應用中，這部分可以替換為從交易所API或數據庫讀取。
     """
-    print("\n--- 請輸入當前賬戶狀態 ---")
+    print("\n--- 當前賬戶狀態 ---")
     
     try:
         # 從 DataFrame 獲取當前價格
         current_price = float(df_latest_day['close'].iloc[-1])
         print(f"(當前參考價格: {current_price:.2f})")
 
-        # 獲取用戶輸入
-        initial_balance = 100.0#float(input(f"初始資金 (USDT): "))
-        current_balance = 0.0#float(input(f"當前現金餘額 (USDT): "))
-        position = 0.0#float(input(f"當前持有幣數量 ({SYMBOL.replace('USDT', '')}): "))
-        buy_point = 0#float(input("平均買入成本 (如果空倉則輸入0): "))
-        no_action_timer = 0#int(input("距離上次操作已過幾個時間步(天)?: "))
+        # 獲取用戶資訊
+        api_key = os.getenv("BINANCE_API_KEY")
+        api_secret = os.getenv("BINANCE_API_SECRET")
 
+        summary = get_account_summary(api_key, api_secret)
+        initial_balance = 100.0#float(input(f"初始資金 (USDT): "))
+        current_balance = summary.get('usdt_balance', 0)#float(input(f"當前現金餘額 (USDT): "))
+        position = summary.get('btc_balance', 0)#float(input(f"當前持有幣數量 ({SYMBOL.replace('USDT', '')}): "))
+        buy_point = summary.get('btc_avg_cost', 0)#float(input("平均買入成本 (如果空倉則輸入0): "))
+        no_action_timer = summary.get('days_since_last_trade', 0)#int(input("距離上次操作已過幾個時間步(天)?: "))
+        report = f"🔔 **交易建議** ({datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}) 🔔\n-----------------------------------\n- **初始資金**: {initial_balance}\n- **USDT餘額**: {current_balance}\n- **BTC餘額**: {position}\n- **未買賣天數**: {no_action_timer}\n"
+        print(report)
+        notify_discord_webhook(report,webhook_url=os.getenv("DISCORD_WEBHOOK_2"))
         # 計算衍生狀態
         total_balance = current_balance + position * current_price
         total_balance_ratio = total_balance / initial_balance if initial_balance > 0 else 1.0
@@ -90,6 +96,62 @@ def softmax(q_values, temperature=1.0):
     exp_q = np.exp(q_values_temp)
     probabilities = exp_q / np.sum(exp_q)
     return probabilities
+
+def format_q_value_report(action_map, q_values, probabilities, chosen_action_index):
+    """
+    將 Q 值、信心度和排名格式化為易於閱讀的報告字串。
+    """
+    report_lines = []
+    # 建立一個標頭，增加“排名”列
+    header = f"{'排名':<4} | {'操作':<12} | {'Q值':>9} | {'信心度':>9}"
+    report_lines.append(header)
+    report_lines.append("-" * (len(header) + 5)) # 稍微加長分隔線
+
+    # --- 新增：計算排名 ---
+    # np.argsort(q_values) 返回的是從小到大的索引
+    # 我們需要從大到小的排名，所以使用 [::-1] 反轉
+    sorted_indices = np.argsort(q_values)[::-1]
+    
+    # 創建一個排名字典，方便查找：{索引: 排名}
+    # 排名從 1 開始
+    ranks = {index: rank + 1 for rank, index in enumerate(sorted_indices)}
+    # --- 排名計算結束 ---
+
+    # 循環遍歷所有動作 (按 0, 1, 2... 的順序)
+    for i in range(len(q_values)):
+        q = q_values[i]
+        p = probabilities[i]
+        
+        # 從 action_map 獲取比例
+        # 假設 action_map 的鍵是整數 0, 1, 2...
+        # 如果是字符串 "0", "1", "2"...，則使用 str(i)
+        ratio = action_map.get(i) 
+        if ratio is None: # 如果 action_map 中沒有對應的鍵
+            action_desc = f"動作 {i}"
+        else:
+            # 產生操作描述
+            if ratio == 0:
+                action_desc = "保持"
+            elif ratio > 0:
+                action_desc = f"買入 {ratio*100:.0f}%"
+            else:
+                action_desc = f"賣出 {abs(ratio)*100:.0f}%"
+        
+        # 獲取當前動作的排名
+        rank = ranks.get(i, -1) # 如果找不到，返回 -1
+        
+        # 格式化每一行
+        # 排名: 左對齊，佔4字符
+        # Q值和信心度: 右對齊，各佔9字符
+        line = f"{rank:<4} | {action_desc:<12} | {q:>9.3f} | {p:>9.2%}"
+        
+        # 標示出模型選擇的最終操作
+        if i == chosen_action_index:
+            line += "  🎯 **<-- 選擇**"
+            
+        report_lines.append(line)
+        
+    return "\n".join(report_lines)
 
 def main():
     """主預測循環"""
@@ -135,7 +197,7 @@ def main():
             print("\n" + "="*50)
             print(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 開始新一輪預測...")
             # 獲取包含今天這根不完整日K線在內的所有歷史日線數據
-            df_daily_full = get_all_binance_klines(symbol=SYMBOL, interval="1d")
+            df_daily_full = get_binance_klines(symbol=SYMBOL, interval="1d")
             print(f"已獲取 {len(df_daily_full)} 條日線數據，最新一條為 {df_daily_full['timestamp'].iloc[-1].date()}")
 
             # --- 狀態準備 ---
@@ -173,24 +235,23 @@ def main():
             cal_probs = softmax(cal_q_values)
 
             # --- 綜合建議與通知 ---
-            report = f"""
-🔔 **交易建議** ({datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}) 🔔
------------------------------------
+            balance_model_details = format_q_value_report(
+                action_map, bal_q_values, bal_probs, bal_action_idx
+            )
+            calmar_model_details = format_q_value_report(
+                action_map, cal_q_values, cal_probs, cal_action_idx
+            )
+
+            report = f"""- **持倉成本**: {current_buy_point:.2f}
 - **當前 {SYMBOL} 價格**: {current_price:.2f}
-- **你的持倉成本**: {current_buy_point:.2f}
 -----------------------------------
 📈 **最高餘額模型 (追求高回報)**:
-    - **建議操作**: **{bal_action_desc}**
-    - 動作索引: {bal_action_idx}
-    - Q值: {[f'{q:.2f}' for q in bal_q_values]}
-    - 信心:{[f'{p*100:.2f}%' for p in bal_probs]}
-
+    **最終建議**: **{bal_action_desc}**
+    {balance_model_details}
 🛡️ **最高卡爾瑪模型 (注重風險控制)**:
-    - **建議操作**: **{cal_action_desc}**
-    - 動作索引: {cal_action_idx}
-    - Q值: {[f'{q:.2f}' for q in cal_q_values]}
-    - 信心:{[f'{p*100:.2f}%' for p in cal_probs]}
------------------------------------
+    **最終建議**: **{cal_action_desc}**
+    {calmar_model_details}
+===================================
             """
             print(report)
             notify_discord_webhook(report,webhook_url=os.getenv("DISCORD_WEBHOOK_2"))
@@ -199,7 +260,7 @@ def main():
             error_message = f"[錯誤] 預測循環中發生錯誤: {e}"
             import traceback
             traceback.print_exc()
-            notify_discord_webhook(error_message)
+            notify_discord_webhook(error_message,webhook_url=os.getenv("DISCORD_WEBHOOK_2"))
 
         # --- 等待下一小時 ---
         print("="*50)
