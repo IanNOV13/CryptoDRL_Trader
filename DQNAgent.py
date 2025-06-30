@@ -6,7 +6,7 @@ import os
 from collections import deque
 
 # 假設你的模型構建函數在 model_builder.py (或 dqn_gru_model.py)
-from dqn_gru_model import build_inception_gru_dqn_model
+from dqn_lstm_model import build_inception_lstm_dqn_model
 
 class DQNAgent:
     def __init__(self,
@@ -55,7 +55,7 @@ class DQNAgent:
     def _build_model(self):
         # 創建優化器實例，學習率會在訓練循環中動態設置
         optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr_initial) # 初始學習率
-        model = build_inception_gru_dqn_model(self.model_input_shape, self.action_size)
+        model = build_inception_lstm_dqn_model(self.model_input_shape, self.action_size)
         model.compile(optimizer=optimizer, loss='mse') # 使用 MSE 損失
         return model
 

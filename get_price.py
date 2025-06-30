@@ -50,10 +50,10 @@ if __name__ == "__main__":
     coin = "BTCUSDT"
     # 取得 BTC/USDT 的完整歷史 K 線數據
     df_daily = get_all_binance_klines(symbol=coin, interval="1d")
-    df_hourly = get_all_binance_klines(symbol=coin, interval="1h")
+    #df_hourly = get_all_binance_klines(symbol=coin, interval="1h")
 
     # 存成 CSV 檔案
     df_daily.to_csv(f"./full_csv/{coin}_1d_full.csv", index=False)
-    df_hourly.to_csv(f"./full_csv/{coin}_1h_full.csv", index=False)
+    #df_hourly.to_csv(f"./full_csv/{coin}_1h_full.csv", index=False)
 
     print("✅ 已成功存成 CSV！")

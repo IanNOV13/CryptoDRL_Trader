@@ -3,7 +3,10 @@ import pandas as pd
 import pandas_ta as ta
 
 def creat_technical_data(df_raw, save_cvs=False):
-    df = pd.read_csv(df_raw)
+    if isinstance(df_raw, pd.DataFrame):
+       df = df_raw 
+    else:
+        df = pd.read_csv(df_raw)
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df.set_index("timestamp", inplace=True)
     df[["open", "high", "low", "close", "volume"]] = df[["open", "high", "low", "close", "volume"]].astype(float)

@@ -5,11 +5,14 @@ from gym import spaces
 from sklearn.preprocessing import StandardScaler # 用於歸一化
 
 class CryptoTradingEnv(gym.Env):
-    def __init__(self, data_file, data_split='train', train_ratio=0.8, initial_balance=500, risk_free_rate=0.0, days_in_year=365):
+    def __init__(self, df, data_split='train', train_ratio=0.8, initial_balance=500, risk_free_rate=0.0, days_in_year=365):
         super(CryptoTradingEnv, self).__init__()
 
         # --- 數據加載與劃分 (修正測試集邏輯) ---
-        full_df = pd.read_csv(data_file)
+        if isinstance(df, pd.DataFrame):
+            full_df = df
+        else:
+            full_df = pd.read_csv(df)
         split_index = int(len(full_df) * train_ratio)
         if data_split == 'train':
             self.df = full_df[:split_index].reset_index(drop=True)

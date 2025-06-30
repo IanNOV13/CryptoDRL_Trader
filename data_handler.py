@@ -58,13 +58,13 @@ def prepare_data_and_env(config, symbol="BTCUSDT", interval="1d"):
     #    它內部會處理數據加載和劃分
     print("創建訓練和測試環境...")
     train_env = CryptoTradingEnv(
-        data_file=technical_data_path,
+        df=technical_data_path,
         data_split='train',
         train_ratio=config.get("TRAIN_RATIO", 0.8),
         initial_balance=config.get("INITIAL_BALANCE", 500)
     )
     test_env = CryptoTradingEnv(
-        data_file=technical_data_path,
+        df=technical_data_path,
         data_split='test',
         train_ratio=config.get("TRAIN_RATIO", 0.8), # 保持與訓練環境一致的分割比例
         initial_balance=config.get("INITIAL_BALANCE", 500)
@@ -89,7 +89,7 @@ def prepare_data_and_env(config, symbol="BTCUSDT", interval="1d"):
         initial_states_for_scaler = []
         # 使用一個臨時的訓練環境來收集數據
         temp_env_for_scaler = CryptoTradingEnv(
-            data_file=technical_data_path,
+            df=technical_data_path,
             data_split='train', # 必須使用訓練數據擬合
             train_ratio=config.get("TRAIN_RATIO", 0.8),
             initial_balance=config.get("INITIAL_BALANCE", 500)
