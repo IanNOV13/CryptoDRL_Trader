@@ -1,7 +1,9 @@
 import sqlite3
 import os
 from binance.client import Client
+from binance.exceptions import BinanceAPIException, BinanceOrderException
 from datetime import datetime
+import math
 # ... 其他 import
 
 DB_FILE = "trading_data.db"
@@ -168,6 +170,83 @@ def get_account_summary(api_key: str, api_secret: str) -> dict:
         print(f"錯誤發生: {e}")
         return {'error': str(e)}
 
+def get_lot_size(symbol, client):
+    symbol_info = client.get_symbol_info(symbol)
+    for f in symbol_info['filters']:
+        if f['filterType'] == 'LOT_SIZE':
+            min_qty = float(f['minQty'])
+            step_size = float(f['stepSize'])
+            return min_qty, step_size
+    return None, None
+
+def floor_step_size(quantity, step_size):
+    precision = int(-math.log10(step_size))
+    factor = 10 ** precision
+    return math.floor(quantity * factor) / factor
+
+def adjust_position(position_ratio: float, api_key: str, api_secret: str):
+    symbol = 'BTCUSDT'
+    client = Client(api_key, api_secret)
+
+    try:
+        price = float(client.get_symbol_ticker(symbol=symbol)['price'])
+        min_qty, step_size = get_lot_size(symbol, client)
+        min_notional = 5.0
+
+        if position_ratio > 0:
+            usdt = float(client.get_asset_balance(asset='USDT')['free'])
+            quote_order_qty = round(usdt * position_ratio, 2)
+
+            qty = quote_order_qty / price
+            qty = floor_step_size(qty, step_size)
+
+            notional = qty * price
+            if qty * price < min_notional or qty < min_qty:
+                return {
+                    "status": 400,
+                    "msg": f"買入量太小：qty={qty}, notional={notional}, min_qty={min_qty}"
+                }
+
+            print(f"購買 {qty} 個BTC")
+            order = client.create_order(
+                symbol=symbol,
+                side='BUY',
+                type='MARKET',
+                quantity=format(qty, 'f')
+            )
+
+        elif position_ratio < 0:
+            btc = float(client.get_asset_balance(asset='BTC')['free'])
+            qty = btc * abs(position_ratio)
+            qty = floor_step_size(qty, step_size)
+            notional = qty * price
+            print(btc,qty,notional)
+            if qty * price < min_notional or qty < min_qty:
+                return {
+                    "status": 400,
+                    "msg": f"賣出量太小：qty={qty}, notional={notional}, min_qty={min_qty}"
+                }
+
+            qty_str = format(qty, 'f')
+            print(f"賣出 {qty_str} 個BTC")
+            order = client.create_order(
+                symbol=symbol,
+                side='SELL',
+                type='MARKET',
+                quantity=qty_str
+            )
+        else:
+            return {"status": 400, "msg": "position_ratio 不可為 0"}
+
+        return {
+            "status": 200,
+            "msg": order,
+        }
+
+    except BinanceAPIException as e:
+        return {"status": e.code, "msg": e.message}
+    except Exception as e:
+        return {"status": 500, "msg": str(e)}
 
 if __name__ == "__main__":
     init_db()
@@ -179,4 +258,10 @@ if __name__ == "__main__":
     print("\n--- 帳戶總覽 ---")
     # 使用迴圈印出，讓格式更整齊
     for key, value in summary.items():
+        print(f"{key}: {value}")
+
+    # **確認client.create_order是否改成client.create_test_order避免誤下單**
+    print("\n--- 交易測試 ---")
+    order = adjust_position(-1.0)
+    for key, value in order.items():
         print(f"{key}: {value}")

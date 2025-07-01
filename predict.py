@@ -14,7 +14,7 @@ from config_loader import ConfigLoader
 from create_technical_data import creat_technical_data # 假設此函數能接收 DataFrame
 from utils import notify_discord_webhook, setup_gpu
 from get_price import get_binance_klines
-from binance_api import get_account_summary
+from binance_api import get_account_summary,adjust_position
 
 # --- 全局配置 ---
 SYMBOL = "BTCUSDT"
@@ -153,9 +153,25 @@ def format_q_value_report(action_map, q_values, probabilities, chosen_action_ind
         
     return "\n".join(report_lines)
 
+def decide_final_action_by_confidence(bal_action_idx, bal_confidence, cal_action_idx, cal_confidence, action_map):
+    CONFIDENCE_DIFF_THRESHOLD = 30.0 # 信心度閾值30%
+
+    confidence_diff = abs(bal_confidence - cal_confidence)
+
+    if confidence_diff > CONFIDENCE_DIFF_THRESHOLD:
+        if bal_confidence > cal_confidence:
+            print("決策：餘額模型信心顯著更高，採納其建議。")
+            return action_map[bal_action_idx], bal_confidence
+        else:
+            print("決策：卡爾瑪模型信心顯著更高，採納其建議。")
+            return action_map[cal_action_idx], cal_confidence
+    else:
+        print(f"決策：模型意見僵持 (信心差異 < {CONFIDENCE_DIFF_THRESHOLD}%)，採取保守策略。")
+        return action_map[cal_action_idx], cal_confidence # 更傾向於風險控制
+
 def main():
     """主預測循環"""
-    print("--- 啟動交易建議腳本 (每小時) ---")
+    print("--- 啟動交易建議腳本 ---")
     
     # 1. 加載配置、模型和 Scaler
     try:
@@ -163,8 +179,8 @@ def main():
         config = config_obj.load_settings()
         setup_gpu()
 
-        model_path_balance = config['MODEL_PATH'] + "_BEST_BALANCE"
-        model_path_calmar = config['MODEL_PATH'] + "_BEST_CALMAR_RATIO" # 假設你保存了這個模型
+        model_path_balance = "gitignore/" + config['MODEL_PATH'] + "_BEST_BALANCE"
+        model_path_calmar = "gitignore/" + config['MODEL_PATH'] + "_BEST_CALMAR_RATIO" # 假設你保存了這個模型
         scaler_path = os.path.join(config['MODEL_PATH'], "scaler.joblib")
         action_map = {0: 0, 1: 0.2, 2: 0.4, 3: 0.6, 4: 0.8, 5: 1.0, 6: -0.2, 7: -0.4, 8: -0.6, 9: -0.8, 10: -1.0}
         feature_columns = [
@@ -241,6 +257,11 @@ def main():
             calmar_model_details = format_q_value_report(
                 action_map, cal_q_values, cal_probs, cal_action_idx
             )
+            final_action_desc, final_action_confidence = decide_final_action_by_confidence(
+                bal_action_idx, bal_probs[bal_action_idx],
+                cal_action_idx, cal_probs[cal_action_idx],
+                action_map
+            )
 
             report = f"""- **持倉成本**: {current_buy_point:.2f}
 - **當前 {SYMBOL} 價格**: {current_price:.2f}
@@ -251,11 +272,13 @@ def main():
 🛡️ **最高卡爾瑪模型 (注重風險控制)**:
     **最終建議**: **{cal_action_desc}**
     {calmar_model_details}
+📑 **最終執行決策**: **{final_action_desc} (信心度{final_action_confidence:>.2%})**
+- 自動交易結果
+    {adjust_position(final_action_desc, os.getenv("BINANCE_API_KEY"), os.getenv("BINANCE_API_SECRET"))}
 ===================================
             """
             print(report)
             notify_discord_webhook(report,webhook_url=os.getenv("DISCORD_WEBHOOK_2"))
-
         except Exception as e:
             error_message = f"[錯誤] 預測循環中發生錯誤: {e}"
             import traceback
@@ -263,11 +286,14 @@ def main():
             notify_discord_webhook(error_message,webhook_url=os.getenv("DISCORD_WEBHOOK_2"))
 
         # --- 等待下一小時 ---
-        print("="*50)
         now = datetime.datetime.now()
-        seconds_until_next_hour = (60 - now.minute - 1) * 60 + (60 - now.second)
-        for i in range(seconds_until_next_hour):
-            print(f"下一次預測還有{seconds_until_next_hour - i}... (按 Ctrl+C 退出)",end="\r")
+        tomorrow_8am = (now + datetime.timedelta(days=1)).replace(hour=7, minute=30, second=0, microsecond=0)
+
+        seconds_until_8am = int((tomorrow_8am - now).total_seconds())
+
+        for i in range(seconds_until_8am):
+            remaining = seconds_until_8am - i
+            print(f"⏳ 距離明天早上7點半還有 {remaining} 秒... (按 Ctrl+C 退出)", end="\r")
             time.sleep(1)
         print("")
 
